@@ -47,7 +47,7 @@ int count_names(char *names, long size) {
 	return count;
 }
 
-inline unsigned long hash(unsigned char *str, int size) {
+inline unsigned long hash_1(unsigned char *str, int size) {
 	unsigned long hash = 5381;
 	int c;
 
@@ -59,6 +59,23 @@ inline unsigned long hash(unsigned char *str, int size) {
 	return hash;
 }
 
+inline unsigned long hash_2(unsigned char *str, int size) {
+	unsigned long hash = 5381;
+	int c;
+
+	while (size-- != 0) {
+		c = *str++;
+		hash = ((hash << 5) + hash) + c;
+	}
+
+	return hash;
+}
+
+inline unsigned long hash(unsigned long hash1, unsigned long hash2, int table_size, int position) {
+  unsigned long hash = (hash1  + (position * hash2)) % table_size;
+  return hash;
+}
+
 void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 	int size = count_names(names, bytes);
 	int collisions = 0;
@@ -66,7 +83,7 @@ void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 
 	*hash_size = size + 2*size/3;
 
-	printf("hash size: %d\n", *hash_size);
+	printf("hash size: %d slots\n", *hash_size);
 
 	*table = (char **) malloc(*hash_size*sizeof(char *));
 	memset(*table,0,*hash_size*sizeof(char *));
@@ -76,11 +93,16 @@ void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 	char *start = names;
 	while (bytes-- != 0) {
 		if (*names++ == '\n') {
-			int key = hash(start, names-start-1) % *hash_size;
-			while ((*table)[key] != NULL) {
-				key = (key + STEP) % *hash_size;
-				++collisions;
+
+         int collision_count = 0;
+         int hash1 = hash_1(start, names - start -1);
+         int hash2 = hash_2(start, names - start -1);
+         int key = hash(hash1, hash2, *hash_size, collision_count);
+         while ((*table)[key] != NULL) {
+				key = hash(hash1, hash2, *hash_size, ++collision_count);
+            collisions++;
 			}
+         //printf("inserting name %s", start);
 
 			(*table)[key] = start;
 			start = names;
@@ -96,18 +118,20 @@ void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 void validate_names(char *names, long bytes, char **table, int hash_size) {
 	struct timeval  tv1, tv2;
 	char *start;
-	int key;
 	long result = 1;
 
     gettimeofday(&tv1, NULL);
 
 	while ((bytes -= USERNAME_LENGTH+1) >= 0) {
 		start = names;
-		names += USERNAME_LENGTH+1;
-		key = hash(start, USERNAME_LENGTH) % hash_size;
-		while (table[key] != 0 && strncmp(table[key], start, USERNAME_LENGTH) != 0) {
-			key = (key + STEP) % hash_size;
-		}
+      names += USERNAME_LENGTH+1;
+      int collision_count = 0;
+      int hash1 = hash_1(start, names - start -1);
+      int hash2 = hash_2(start, names - start -1);
+      int key = hash(hash1, hash2, hash_size, collision_count);
+      while (table[key] != 0 && strncmp(table[key], start, USERNAME_LENGTH) != 0) {
+        key = hash(hash1, hash2, hash_size, ++collision_count);
+      }
 
 		result = result && (long)table[key]; // false iff we didn't find at least 1
 	}

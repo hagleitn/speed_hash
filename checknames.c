@@ -6,7 +6,7 @@
 #include <sys/stat.h>
 #include <string.h>
 
-#define USERNAME_LENGTH 10
+#define USERNAME_LENGTH 11
 #define STEP 1
 
 static int fd;

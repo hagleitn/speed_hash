@@ -62,15 +62,17 @@ inline unsigned long hash_1(unsigned char *str, int size) {
 }
 
 inline unsigned long hash_2(unsigned char *str, int size) {
-	unsigned long hash = 5381;
-	int c;
-
-	while (size-- != 0) {
-		c = *str++;
-		hash = ((hash << 5) + hash) + c;
-	}
-
-	return hash;
+    int hash, i;
+    for(hash = i = 0; i < size; ++i)
+    {
+        hash += str[i];
+        hash += (hash << 10);
+        hash ^= (hash >> 6);
+    }
+    hash += (hash << 3);
+    hash ^= (hash >> 11);
+    hash += (hash << 15);
+    return hash;
 }
 
 inline unsigned long hash(unsigned long hash1, unsigned long hash2, int table_size, int position) {
@@ -136,6 +138,7 @@ void validate_names(char *names, long bytes, char **table, int hash_size) {
       while (table[key] != 0 && strncmp(table[key], start, USERNAME_LENGTH) != 0) {
         key = hash(hash1, hash2, hash_size, ++collision_count);
       }
+      //printf("%d %d %f", count, collision_count, time);
 
 		result = result && (long)table[key]; // false iff we didn't find at least 1
 	}

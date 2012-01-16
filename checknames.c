@@ -8,6 +8,8 @@
 
 #define USERNAME_LENGTH 11
 #define STEP 1
+#define C1 1
+#define C2 1
 
 static int fd;
 
@@ -72,7 +74,9 @@ inline unsigned long hash_2(unsigned char *str, int size) {
 }
 
 inline unsigned long hash(unsigned long hash1, unsigned long hash2, int table_size, int position) {
-  unsigned long hash = (hash1  + (position * hash2)) % table_size;
+  unsigned long t1 = position*C1;
+  unsigned long t2 = position*position*C2;
+  unsigned long hash = (hash1  + t1 + t2) % table_size;
   return hash;
 }
 

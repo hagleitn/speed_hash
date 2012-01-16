@@ -120,6 +120,29 @@ inline void insert(char *name, int len, char **table, int hash_size, int *collis
 	}
 }
 
+void report_collisions(char **table, int hash_size) {
+	FILE *f = fopen("report.txt","w");
+	int i;
+
+	for (i = 0; i < hash_size; ++i) {
+		int count = 0;
+		if (table[i] != NULL) {
+			if (min_name <= table[i] && max_name > table[i]) {
+				count = 1;
+			} else {
+				bucket *b = (bucket*) table[i];
+				while(b != NULL) {
+					b = b->next;
+					count++;
+				}
+			}
+		}
+		fprintf(f,"%d\n",count);
+	}
+	fclose(f);
+}
+		
+
 void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 	int size = count_names(names, bytes);
 	int collisions = 0;
@@ -185,7 +208,9 @@ int main(int argc, char **argv) {
 
 	printf("build_hash\n");
 	build_hash(names, size, &table, &hash_size);
-
+	
+	report_collisions(table,hash_size);
+	
 	printf("validate_names\n");
 	validate_names(names, size, table, hash_size);
 

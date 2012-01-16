@@ -121,38 +121,65 @@ void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 	printf("collisions: %d\n", collisions);
 }
 
+double total_time(struct timeval* tv1, struct timeval* tv2) {
+  double delta = (double) ((tv2->tv_usec - tv1->tv_usec)) + (double) ((tv2->tv_sec - tv1->tv_sec)*1000000);
+  return delta;
+}
+
+void record_collision(long count, int collisions) {
+  printf("c:%ld %d\n", count, collisions);
+}
+void record_time(long count, struct timeval* tv1, struct timeval* tv2) {
+  if(count == 0) {
+    gettimeofday(&(*tv1), NULL);
+  } else if(count % 10000 == 0) {
+    gettimeofday(&(*tv2), NULL);
+    double t = total_time(tv1, tv2);
+    printf("t:%ld %f\n", count, t);
+    gettimeofday(&*(tv1), NULL);
+  }
+}
+
 void validate_names(char *names, long bytes, char **table, int hash_size) {
-	struct timeval  tv1, tv2;
+	struct timeval* tv1 = malloc(sizeof(struct timeval));
+   struct timeval* tv2 = malloc(sizeof(struct timeval));
 	char *start;
 	long result = 1;
+   double t;
 
-    gettimeofday(&tv1, NULL);
 
+   gettimeofday(&(*tv1), NULL);
+   int count = 0;
 	while ((bytes -= USERNAME_LENGTH+1) >= 0) {
+      count++;
 		start = names;
       names += USERNAME_LENGTH+1;
       int collision_count = 0;
+      //gettimeofday(&tv1, NULL);
       int hash1 = hash_1(start, names - start -1);
+      //gettimeofday(&tv2, NULL);
+      //t = total_time(tv1, tv2);
+      //printf("hash1: %f\n", t);
       int hash2 = hash_2(start, names - start -1);
       int key = hash(hash1, hash2, hash_size, collision_count);
+      //record time
+      
       while (table[key] != 0 && strncmp(table[key], start, USERNAME_LENGTH) != 0) {
         key = hash(hash1, hash2, hash_size, ++collision_count);
       }
-      //printf("%d %d %f", count, collision_count, time);
 
 		result = result && (long)table[key]; // false iff we didn't find at least 1
+      record_collision(count, collision_count);
+      record_time(count, tv1, tv2);
 	}
 
-	gettimeofday(&tv2, NULL);
 
 	if (!result) {
 		printf("TEST FAILED\n");
 		exit(1);
 	}
 
-	printf ("Total time = %f seconds\n",
-			(double) (tv2.tv_usec - tv1.tv_usec)/1000000 +
-			(double) (tv2.tv_sec - tv1.tv_sec));
+	//printf ("Total time = %f seconds\n");
 }
 
 int main(int argc, char **argv) {

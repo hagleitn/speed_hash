@@ -15,6 +15,7 @@ static char *min_name;
 static char *max_name;
 
 static int fd;
+static int words = 0;
 
 void get_names(char *fname, char **names, unsigned long *size) {
 	struct stat info;
@@ -33,10 +34,19 @@ void get_names(char *fname, char **names, unsigned long *size) {
 	*size = info.st_size;
 	printf("file size: %d\n",(int)*size);
 
-	*names = mmap(NULL, *size, PROT_READ, MAP_PRIVATE, fd, 0);
-	if (*names == MAP_FAILED) {
-		perror("mmap:");
+	*names = malloc(*size);
+	int res = read(fd, *names, *size);
+	if (res != *size) {
+		perror("read:");
 		exit(1);
+	}
+
+	int i;
+	for (i = 0; i < *size; ++i) {
+		if ((*names)[i] == '\n') {
+			(*names)[i] = '\0';
+			++words;
+		}
 	}
 
 	min_name = (char *)*names;
@@ -44,21 +54,14 @@ void get_names(char *fname, char **names, unsigned long *size) {
 }
 
 int count_names(char *names, long size) {
-	int count = 0;
-	while (size-- != 0) {
-		if (*names++ == '\n') {
-			++count;
-		}
-	}
-	return count;
+	return words;
 }
 
-inline unsigned long hash(unsigned char *str, int size) {
+inline unsigned long hash(unsigned char *str) {
 	unsigned long hash = 5381;
 	int c;
 
-	while (size-- != 0) {
-		c = *str++;
+	while ((c = *str++) != '\0') {
 		hash = ((hash << 5) + hash) + c;
 	}
 
@@ -70,31 +73,31 @@ typedef struct _bucket {
 	struct _bucket *next;
 } bucket;
 
-inline int check(char *name, int len, char **table, int hash_size) {
-	int key = hash(name,len) % hash_size;
+inline int check(char *name, char **table, int hash_size) {
+	int key = hash(name) % hash_size;
 	
 	if (table[key] == NULL) {
-		printf("empty: %.10s\n", name);
+		printf("empty: %s\n", name);
 		return FALSE;
 	} else {
 		if (min_name <= table[key] && max_name > table[key]) {
-			return strncmp(name, table[key], len) == 0;
+			return strcmp(name, table[key]) == 0;
 		}
 		
 		bucket *b = (bucket *)table[key];
 		while(b != NULL) {
-			if (strncmp(name, b->name, len) == 0) {
+			if (strcmp(name, b->name) == 0) {
 				return TRUE;
 			}
 			b = b->next;
 		}
-		printf("empty again: %.10s\n", name);
+		printf("empty again: %s\n", name);
 		return FALSE;
 	}
 }
 
-inline void insert(char *name, int len, char **table, int hash_size, int *collisions) {
-	int key = hash(name,len) % hash_size;
+inline void insert(char *name, char **table, int hash_size, int *collisions) {
+	int key = hash(name) % hash_size;
 	
 	if (table[key] == NULL) {
 		table[key] = name;
@@ -159,8 +162,8 @@ void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 	
 	char *start = names;
 	while (bytes-- != 0) {
-		if (*names++ == '\n') {
-			insert(start, names-start-1, *table, *hash_size, &collisions);
+		if (*names++ == '\0') {
+			insert(start, *table, *hash_size, &collisions);
 			start = names;
 
 			if (++count % 10000000 == 0) {
@@ -173,16 +176,14 @@ void build_hash(char *names, long bytes, char ***table, int *hash_size) {
 
 void validate_names(char *names, long bytes, char **table, int hash_size) {
 	struct timeval  tv1, tv2;
-	char *start;
 	int key;
 	long result = TRUE;
 
     gettimeofday(&tv1, NULL);
 
 	while ((bytes -= USERNAME_LENGTH+1) >= 0) {
-		start = names;
+		result = result && check(names, table, hash_size);
 		names += USERNAME_LENGTH+1;
-		result = result && check(start, USERNAME_LENGTH, table, hash_size);
 	}
 
 	gettimeofday(&tv2, NULL);
@@ -209,12 +210,11 @@ int main(int argc, char **argv) {
 	printf("build_hash\n");
 	build_hash(names, size, &table, &hash_size);
 	
-	report_collisions(table,hash_size);
+	report_collisions(table, hash_size);
 	
 	printf("validate_names\n");
 	validate_names(names, size, table, hash_size);
 
 	free(table);
-	munmap(names, size);
 	close(fd);
 }
